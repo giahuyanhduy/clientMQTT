@@ -20,7 +20,12 @@ import requests
 # ==================== CẤU HÌNH LOGGING CHI TIẾT ====================
 def setup_logging():
     """Thiết lập hệ thống logging chi tiết"""
-    log_dir = "/home/WEB/logs"
+    # Tạo thư mục log trong thư mục hiện tại hoặc /opt/fuel-client-mqtt/logs
+    if os.path.exists("/opt/fuel-client-mqtt"):
+        log_dir = "/opt/fuel-client-mqtt/logs"
+    else:
+        log_dir = "./logs"
+    
     os.makedirs(log_dir, exist_ok=True)
     
     # Cấu hình logging chính
@@ -393,7 +398,7 @@ def check_disk_and_clear_logs(threshold=85):
                     if disk_usage_percent > threshold:
                         logger.warning(f"Ổ cứng sử dụng vượt quá {threshold}%. Tiến hành xóa các file log...")
                         try:
-                            # Xóa file log
+                            # Xóa file log (tính năng giải phóng dung lượng)
                             subprocess.run("find / -type f -name '*.log' -execdir rm -- '{}' +", shell=True, check=True)
                             logger.info("Đã xóa các file log trong toàn bộ hệ thống")
                         except subprocess.CalledProcessError as e:
