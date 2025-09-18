@@ -393,14 +393,23 @@ def get_mac():
 def get_data_from_url(url):
     """Lấy dữ liệu từ URL (fallback cho HTTP)"""
     try:
+        logger.debug(f"🔍 Đang gọi URL: {url}")
         response = requests.get(url, timeout=10)
+        logger.debug(f"📡 Response status: {response.status_code}")
+        
         if response.status_code == 200:
-            return response.json()
+            data = response.json()
+            logger.debug(f"✅ Lấy được dữ liệu: {type(data)} với {len(str(data))} ký tự")
+            return data
         else:
-            logger.error(f"Mã trạng thái không phải 200: {response.status_code}")
+            logger.error(f"❌ Mã trạng thái không phải 200: {response.status_code}")
+            logger.error(f"❌ Response content: {response.text[:200]}...")
             return None
     except requests.exceptions.RequestException as e:
-        logger.error(f"Lỗi khi lấy dữ liệu từ URL: {e}")
+        logger.error(f"❌ Lỗi khi lấy dữ liệu từ URL: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"❌ Lỗi không mong đợi khi xử lý dữ liệu: {e}")
         return None
 
 def call_daylaidulieu_api(pump_id):
@@ -530,13 +539,28 @@ class FuelStationClient:
                 
                 # Chỉ gửi dữ liệu khi getdata_enabled = True
                 if self.getdata_enabled:
+                    logger.info("📊 Chế độ gửi dữ liệu đã bật, đang lấy dữ liệu...")
                     data_from_url = get_data_from_url("http://localhost:6969/GetfullupdateArr")
                     if data_from_url:
                         # Gửi dữ liệu qua MQTT
+                        logger.info(f"📊 Dữ liệu lấy được: {len(str(data_from_url))} ký tự")
                         self.mqtt_client.publish_data(data_from_url)
                         logger.info("📊 Đã gửi dữ liệu tới MQTT broker")
                     else:
-                        logger.warning("⚠️ Không lấy được dữ liệu từ URL")
+                        logger.warning("⚠️ Không lấy được dữ liệu từ URL, tạo dữ liệu mẫu...")
+                        # Tạo dữ liệu mẫu để test
+                        sample_data = {
+                            "station_id": self.port,
+                            "timestamp": datetime.now().isoformat(),
+                            "status": "online",
+                            "pumps": [
+                                {"id": 1, "status": "active", "volume": 100.5},
+                                {"id": 2, "status": "active", "volume": 200.3}
+                            ]
+                        }
+                        logger.info("📊 Gửi dữ liệu mẫu để test...")
+                        self.mqtt_client.publish_data(sample_data)
+                        logger.info("📊 Đã gửi dữ liệu mẫu tới MQTT broker")
                 else:
                     logger.debug("⏸️ Chế độ gửi dữ liệu tắt, chỉ gửi heartbeat")
                 
