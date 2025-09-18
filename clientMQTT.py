@@ -160,7 +160,15 @@ class MQTTFuelStationClient:
         """Xử lý lệnh getdata"""
         try:
             logger.info(f"📊 Nhận lệnh getdata: {getdata_status}")
-            # Có thể thêm logic xử lý getdata ở đây
+            
+            # Cập nhật trạng thái gửi dữ liệu
+            if getdata_status.lower() == 'on':
+                self.getdata_enabled = True
+                logger.info("✅ Bật chế độ gửi dữ liệu")
+            else:
+                self.getdata_enabled = False
+                logger.info("⏸️ Tắt chế độ gửi dữ liệu, chỉ gửi heartbeat")
+                
         except Exception as e:
             logger.error(f"❌ Lỗi xử lý lệnh getdata: {e}")
             
@@ -423,6 +431,7 @@ class FuelStationClient:
         self.is_all_disconnect_restart = [False]
         self.last_restart_all = None
         self.last_non_sequential_restart = None
+        self.getdata_enabled = False  # Mặc định tắt gửi dữ liệu
         
     def initialize(self):
         """Khởi tạo client"""
@@ -464,27 +473,30 @@ class FuelStationClient:
         self.mqtt_client.disconnect()
         
     def send_data_continuously(self):
-        """Gửi dữ liệu liên tục qua MQTT"""
+        """Gửi heartbeat liên tục và dữ liệu khi cần thiết"""
         while True:
             try:
-                # Lấy dữ liệu từ local API
-                data_from_url = get_data_from_url("http://localhost:6969/GetfullupdateArr")
-                if data_from_url:
-                    # Gửi qua MQTT
-                    self.mqtt_client.publish_data(data_from_url)
-                    logger.info("Dữ liệu đã gửi tới MQTT broker")
-                else:
-                    logger.warning("Không lấy được dữ liệu từ URL")
-                    
-                # Gửi heartbeat
+                # Luôn gửi heartbeat
                 self.mqtt_client.publish_heartbeat()
+                logger.debug("💓 Đã gửi heartbeat")
+                
+                # Chỉ gửi dữ liệu khi getdata_enabled = True
+                if self.getdata_enabled:
+                    data_from_url = get_data_from_url("http://localhost:6969/GetfullupdateArr")
+                    if data_from_url:
+                        # Gửi dữ liệu qua MQTT
+                        self.mqtt_client.publish_data(data_from_url)
+                        logger.info("📊 Đã gửi dữ liệu tới MQTT broker")
+                    else:
+                        logger.warning("⚠️ Không lấy được dữ liệu từ URL")
+                else:
+                    logger.debug("⏸️ Chế độ gửi dữ liệu tắt, chỉ gửi heartbeat")
                 
             except Exception as e:
-                logger.error(f"Lỗi trong vòng lặp gửi dữ liệu: {e}")
+                logger.error(f"❌ Lỗi trong vòng lặp gửi dữ liệu: {e}")
                 
-            # Sleep ngẫu nhiên
-            sleep_duration = random.uniform(4, 8)
-            time.sleep(sleep_duration)
+            # Sleep cố định cho heartbeat
+            time.sleep(30)  # Gửi heartbeat mỗi 30 giây
             
     def check_mabom_continuously(self):
         """Kiểm tra mã bơm liên tục"""
