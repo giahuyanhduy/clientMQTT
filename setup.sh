@@ -161,8 +161,14 @@ git clone $GITHUB_REPO $TEMP_DIR
 
 # 6. COPY FILES
 log "Copy files vào thư mục cài đặt..."
-cp $TEMP_DIR/client_mqtt.py $CLIENT_DIR/
+cp $TEMP_DIR/clientMQTT.py $CLIENT_DIR/
 cp $TEMP_DIR/requirements.txt $CLIENT_DIR/ 2>/dev/null || echo "requirements.txt không tồn tại"
+
+# Rename file để dễ sử dụng
+if [ -f "$CLIENT_DIR/clientMQTT.py" ]; then
+    mv "$CLIENT_DIR/clientMQTT.py" "$CLIENT_DIR/client_mqtt.py"
+    log "Đã đổi tên clientMQTT.py thành client_mqtt.py"
+fi
 
 # 7. KIỂM TRA VÀ CÀI ĐẶT PYTHON DEPENDENCIES
 log "Kiểm tra và cài đặt Python dependencies..."
@@ -267,8 +273,8 @@ git clone "$GITHUB_REPO" "$TEMP_DIR" 2>/dev/null
 
 if [ $? -eq 0 ]; then
     # So sánh version
-    if [ -f "$CLIENT_DIR/client_mqtt.py" ] && [ -f "$TEMP_DIR/client_mqtt.py" ]; then
-        if ! cmp -s "$CLIENT_DIR/client_mqtt.py" "$TEMP_DIR/client_mqtt.py"; then
+    if [ -f "$CLIENT_DIR/client_mqtt.py" ] && [ -f "$TEMP_DIR/clientMQTT.py" ]; then
+        if ! cmp -s "$CLIENT_DIR/client_mqtt.py" "$TEMP_DIR/clientMQTT.py"; then
             log "🔄 Phát hiện phiên bản mới, bắt đầu cập nhật..."
             
             # Backup file cũ
@@ -276,8 +282,8 @@ if [ $? -eq 0 ]; then
             cp "$CLIENT_DIR/client_mqtt.py" "$BACKUP_FILE"
             log "📦 Backup file cũ: $BACKUP_FILE"
             
-            # Copy file mới
-            cp "$TEMP_DIR/client_mqtt.py" "$CLIENT_DIR/"
+            # Copy file mới và đổi tên
+            cp "$TEMP_DIR/clientMQTT.py" "$CLIENT_DIR/client_mqtt.py"
             log "✅ Copy file mới thành công"
             
             # Restart service
@@ -296,7 +302,7 @@ if [ $? -eq 0 ]; then
             log "✅ Đã là phiên bản mới nhất, không cần cập nhật"
         fi
     else
-        log "⚠️ Không tìm thấy file client_mqtt.py để so sánh"
+        log "⚠️ Không tìm thấy file clientMQTT.py để so sánh"
     fi
     
     # Cleanup
