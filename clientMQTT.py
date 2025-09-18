@@ -76,6 +76,8 @@ class MQTTFuelStationClient:
         self.is_all_disconnect_restart = [False]
         self.last_restart_all = None
         self.last_non_sequential_restart = None
+        self.should_stop = False  # Đánh dấu để dừng client
+        self.should_reconnect = False  # Đánh dấu để kết nối lại
         
     def on_connect(self, client, userdata, flags, rc):
         """Callback khi kết nối MQTT"""
@@ -95,6 +97,11 @@ class MQTTFuelStationClient:
         """Callback khi mất kết nối MQTT"""
         self.connected = False
         logger.warning(f"⚠️ Mất kết nối MQTT: {rc}")
+        
+        # Không dừng client, chỉ đánh dấu mất kết nối để reconnect
+        if rc != 0:
+            logger.warning("⚠️ Mất kết nối không mong muốn, sẽ thử kết nối lại...")
+            self.should_reconnect = True
         
     def on_log(self, client, userdata, level, buf):
         """Callback cho log MQTT"""
@@ -187,7 +194,18 @@ class MQTTFuelStationClient:
             logger.info(f"🔌 Đang kết nối đến MQTT broker {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}")
             self.client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_KEEPALIVE)
             self.client.loop_start()
-            return True
+            
+            # Chờ một chút để kết nối được thiết lập
+            time.sleep(2)
+            
+            if self.connected:
+                logger.info("✅ Kết nối MQTT thành công")
+                self.should_reconnect = False
+                return True
+            else:
+                logger.warning("⚠️ Kết nối chưa thành công")
+                return False
+                
         except Exception as e:
             logger.error(f"❌ Lỗi kết nối MQTT: {e}")
             return False
@@ -437,6 +455,8 @@ class FuelStationClient:
         self.last_non_sequential_restart = None
         self.getdata_enabled = False  # Mặc định tắt gửi dữ liệu
         self.info_sent = False  # Đánh dấu đã gửi thông tin chưa
+        self.should_stop = False  # Đánh dấu để dừng client
+        self.should_reconnect = False  # Đánh dấu để kết nối lại
         
     def initialize(self):
         """Khởi tạo client"""
@@ -471,7 +491,11 @@ class FuelStationClient:
             
     def connect(self):
         """Kết nối MQTT"""
-        return self.mqtt_client.connect()
+        success = self.mqtt_client.connect()
+        if not success:
+            logger.warning("⚠️ Không thể kết nối MQTT, sẽ thử lại sau")
+            self.should_reconnect = True
+        return success
         
     def disconnect(self):
         """Ngắt kết nối MQTT"""
@@ -479,8 +503,22 @@ class FuelStationClient:
         
     def send_data_continuously(self):
         """Gửi heartbeat liên tục và dữ liệu khi cần thiết"""
-        while True:
+        while not self.should_stop:
             try:
+                # Kiểm tra kết nối MQTT trước khi gửi
+                if not self.mqtt_client.connected or self.should_reconnect:
+                    logger.warning("⚠️ Mất kết nối MQTT, đang thử kết nối lại...")
+                    
+                    # Thử kết nối lại
+                    if self.mqtt_client.connect():
+                        logger.info("✅ Đã kết nối lại MQTT thành công")
+                        self.should_reconnect = False
+                        self.info_sent = False  # Reset để gửi thông tin đầy đủ lại
+                    else:
+                        logger.warning("⚠️ Chưa thể kết nối lại, chờ 5 giây...")
+                        time.sleep(5)
+                        continue
+                
                 # Gửi heartbeat với thông tin đầy đủ lần đầu, sau đó chỉ gửi heartbeat đơn giản
                 if not self.info_sent:
                     self.mqtt_client.publish_heartbeat(include_info=True)
@@ -504,19 +542,31 @@ class FuelStationClient:
                 
             except Exception as e:
                 logger.error(f"❌ Lỗi trong vòng lặp gửi dữ liệu: {e}")
+                # Đánh dấu cần kết nối lại thay vì dừng client
+                self.should_reconnect = True
+                time.sleep(5)  # Chờ 5 giây trước khi thử lại
+                continue
             
             # Sleep cố định cho heartbeat (nằm ngoài try-except)
-            time.sleep(10)  # Gửi heartbeat mỗi 10 giây
+            if not self.should_stop:
+                time.sleep(10)  # Gửi heartbeat mỗi 10 giây
+        
+        logger.info("🛑 Client đã dừng")
             
     def check_mabom_continuously(self):
         """Kiểm tra mã bơm liên tục"""
-        while True:
+        while not self.should_stop:
             try:
-                data_from_url = get_data_from_url("http://localhost:6969/GetfullupdateArr")
-                if data_from_url:
-                    self.check_mabom(data_from_url)
+                # Chỉ kiểm tra mã bơm khi đã kết nối MQTT
+                if self.mqtt_client.connected and not self.should_reconnect:
+                    data_from_url = get_data_from_url("http://localhost:6969/GetfullupdateArr")
+                    if data_from_url:
+                        self.check_mabom(data_from_url)
+                    else:
+                        logger.warning("Không lấy được dữ liệu để kiểm tra mã bơm")
                 else:
-                    logger.warning("Không lấy được dữ liệu để kiểm tra mã bơm")
+                    logger.debug("⏸️ Chưa kết nối MQTT, bỏ qua kiểm tra mã bơm")
+                    
             except Exception as e:
                 logger.error(f"Lỗi trong vòng lặp kiểm tra mã bơm: {e}")
                 
@@ -675,10 +725,27 @@ def main():
         
         # Giữ chương trình chạy
         try:
-            while True:
+            while not client.should_stop:
                 time.sleep(1)
+                
+                # Không dừng client khi mất kết nối, để nó tự reconnect
+                # Chỉ log trạng thái kết nối
+                if not client.mqtt_client.connected:
+                    logger.debug("⚠️ Mất kết nối MQTT, client sẽ tự động kết nối lại...")
+                    
         except KeyboardInterrupt:
             logger.info("⏹️ Nhận tín hiệu dừng, đang tắt client...")
+            client.should_stop = True
+            
+        # Dừng các thread
+        logger.info("🛑 Đang dừng các thread...")
+        client.should_stop = True
+        
+        # Chờ các thread kết thúc
+        if 'data_thread' in locals() and data_thread.is_alive():
+            data_thread.join(timeout=5)
+        if 'mabom_thread' in locals() and mabom_thread.is_alive():
+            mabom_thread.join(timeout=5)
             
     except Exception as e:
         logger.error(f"❌ Lỗi khởi động client: {e}")
