@@ -148,7 +148,7 @@ sudo systemctl daemon-reload
 
 # 4. TẠO THƯ MỤC VÀ CẤU TRÚC
 log "Tạo cấu trúc thư mục..."
-mkdir -p $CLIENT_DIR/{scripts,logs,config}
+mkdir -p $CLIENT_DIR/{scripts,logs}
 mkdir -p $TEMP_DIR
 
 # 5. TẢI CODE TỪ GITHUB
@@ -205,35 +205,9 @@ for module in "${BUILTIN_MODULES[@]}"; do
     fi
 done
 
-# 8. TẠO FILE CẤU HÌNH
-log "Tạo file cấu hình..."
-cat > $CLIENT_DIR/config/client.conf << EOF
-# Cấu hình Client MQTT Fuel Station
-# File này được tạo tự động bởi setup.sh
-
-# Thông tin trạm
-STATION_NAME=Trạm Xăng
-STATION_PORT=12345
-STATION_MAC=00:11:22:33:44:55
-
-# MQTT Broker
-MQTT_BROKER_HOST=$SERVER_IP
-MQTT_BROKER_PORT=1883
-MQTT_KEEPALIVE=60
-MQTT_QOS=1
-
-# Topics
-TOPIC_DATA=fuel_station/data
-TOPIC_STATUS=fuel_station/status
-TOPIC_COMMAND=fuel_station/command
-TOPIC_HEARTBEAT=fuel_station/heartbeat
-TOPIC_WARNING=fuel_station/warning
-
-# Cấu hình khác
-HEARTBEAT_INTERVAL=30
-LOG_LEVEL=INFO
-LOG_FILE=$CLIENT_DIR/logs/client.log
-EOF
+# 8. TẠO THƯ MỤC LOGS (KHÔNG CẦN FILE CONFIG)
+log "Tạo thư mục logs..."
+mkdir -p $CLIENT_DIR/logs
 
 # 9. TẠO SCRIPT AUTO-UPDATE (CHẠY KHI SERVICE KHỞI ĐỘNG)
 log "Tạo script auto-update..."
