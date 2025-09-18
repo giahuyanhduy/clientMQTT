@@ -161,13 +161,25 @@ git clone $GITHUB_REPO $TEMP_DIR
 
 # 6. COPY FILES
 log "Copy files vào thư mục cài đặt..."
-cp $TEMP_DIR/clientMQTT.py $CLIENT_DIR/
-cp $TEMP_DIR/requirements.txt $CLIENT_DIR/ 2>/dev/null || echo "requirements.txt không tồn tại"
 
-# Rename file để dễ sử dụng
-if [ -f "$CLIENT_DIR/clientMQTT.py" ]; then
+# Kiểm tra file có tồn tại không
+if [ -f "$TEMP_DIR/clientMQTT.py" ]; then
+    cp $TEMP_DIR/clientMQTT.py $CLIENT_DIR/
+    log "✅ Đã copy clientMQTT.py"
+    
+    # Rename file để dễ sử dụng
     mv "$CLIENT_DIR/clientMQTT.py" "$CLIENT_DIR/client_mqtt.py"
-    log "Đã đổi tên clientMQTT.py thành client_mqtt.py"
+    log "✅ Đã đổi tên clientMQTT.py thành client_mqtt.py"
+else
+    error "❌ Không tìm thấy file clientMQTT.py trong repository"
+fi
+
+# Copy requirements.txt nếu có
+if [ -f "$TEMP_DIR/requirements.txt" ]; then
+    cp $TEMP_DIR/requirements.txt $CLIENT_DIR/
+    log "✅ Đã copy requirements.txt"
+else
+    log "⚠️ Không tìm thấy requirements.txt"
 fi
 
 # 7. KIỂM TRA VÀ CÀI ĐẶT PYTHON DEPENDENCIES
