@@ -504,9 +504,9 @@ class FuelStationClient:
                 
             except Exception as e:
                 logger.error(f"❌ Lỗi trong vòng lặp gửi dữ liệu: {e}")
-                
-                # Sleep cố định cho heartbeat
-                time.sleep(10)  # Gửi heartbeat mỗi 10 giây
+            
+            # Sleep cố định cho heartbeat (nằm ngoài try-except)
+            time.sleep(10)  # Gửi heartbeat mỗi 10 giây
             
     def check_mabom_continuously(self):
         """Kiểm tra mã bơm liên tục"""
