@@ -189,7 +189,6 @@ log "Kiểm tra và cài đặt Python dependencies..."
 REQUIRED_PACKAGES=(
     "paho-mqtt"
     "requests"
-    "flask"
 )
 
 # Kiểm tra từng thư viện
@@ -209,6 +208,7 @@ done
 
 # Kiểm tra thư viện built-in (không cần cài đặt)
 BUILTIN_MODULES=("json" "time" "os" "subprocess" "re" "random" "logging" "datetime" "threading")
+log "Kiểm tra thư viện built-in Python..."
 for module in "${BUILTIN_MODULES[@]}"; do
     if python3 -c "import $module" 2>/dev/null; then
         log "✅ $module (built-in) - OK"
