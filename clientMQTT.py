@@ -30,7 +30,7 @@ def setup_logging():
     
     # Cấu hình logging chính
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler(f'{log_dir}/client_mqtt.log', encoding='utf-8'),
@@ -393,13 +393,13 @@ def get_mac():
 def get_data_from_url(url):
     """Lấy dữ liệu từ URL (fallback cho HTTP)"""
     try:
-        logger.debug(f"🔍 Đang gọi URL: {url}")
+        logger.info(f"🔍 Đang gọi URL: {url}")
         response = requests.get(url, timeout=10)
-        logger.debug(f"📡 Response status: {response.status_code}")
+        logger.info(f"📡 Response status: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
-            logger.debug(f"✅ Lấy được dữ liệu: {type(data)} với {len(str(data))} ký tự")
+            logger.info(f"✅ Lấy được dữ liệu: {type(data)} với {len(str(data))} ký tự")
             return data
         else:
             logger.error(f"❌ Mã trạng thái không phải 200: {response.status_code}")
@@ -535,11 +535,11 @@ class FuelStationClient:
                     logger.info("📋 Đã gửi thông tin đầy đủ lần đầu")
                 else:
                     self.mqtt_client.publish_heartbeat(include_info=False)
-                    logger.debug("💓 Đã gửi heartbeat đơn giản")
+                    logger.info("💓 Đã gửi heartbeat đơn giản")
                 
-                # Chỉ gửi dữ liệu khi getdata_enabled = True
+                # Chỉ gửi dữ liệu khi getdata_enabled = True (như client cũ)
                 if self.getdata_enabled:
-                    logger.info("📊 Chế độ gửi dữ liệu đã bật, đang lấy dữ liệu...")
+                    logger.info("📊 Chế độ gửi dữ liệu đã bật, đang lấy dữ liệu từ localhost...")
                     data_from_url = get_data_from_url("http://localhost:6969/GetfullupdateArr")
                     if data_from_url:
                         # Gửi dữ liệu qua MQTT
@@ -547,22 +547,9 @@ class FuelStationClient:
                         self.mqtt_client.publish_data(data_from_url)
                         logger.info("📊 Đã gửi dữ liệu tới MQTT broker")
                     else:
-                        logger.warning("⚠️ Không lấy được dữ liệu từ URL, tạo dữ liệu mẫu...")
-                        # Tạo dữ liệu mẫu để test
-                        sample_data = {
-                            "station_id": self.port,
-                            "timestamp": datetime.now().isoformat(),
-                            "status": "online",
-                            "pumps": [
-                                {"id": 1, "status": "active", "volume": 100.5},
-                                {"id": 2, "status": "active", "volume": 200.3}
-                            ]
-                        }
-                        logger.info("📊 Gửi dữ liệu mẫu để test...")
-                        self.mqtt_client.publish_data(sample_data)
-                        logger.info("📊 Đã gửi dữ liệu mẫu tới MQTT broker")
+                        logger.warning("⚠️ Không lấy được dữ liệu từ localhost:6969")
                 else:
-                    logger.debug("⏸️ Chế độ gửi dữ liệu tắt, chỉ gửi heartbeat")
+                    logger.info("⏸️ Chế độ gửi dữ liệu tắt, chỉ gửi heartbeat")
                 
             except Exception as e:
                 logger.error(f"❌ Lỗi trong vòng lặp gửi dữ liệu: {e}")
@@ -578,18 +565,15 @@ class FuelStationClient:
         logger.info("🛑 Client đã dừng")
             
     def check_mabom_continuously(self):
-        """Kiểm tra mã bơm liên tục"""
+        """Kiểm tra mã bơm liên tục (luôn lấy dữ liệu từ localhost như client cũ)"""
         while not self.should_stop:
             try:
-                # Chỉ kiểm tra mã bơm khi đã kết nối MQTT
-                if self.mqtt_client.connected and not self.should_reconnect:
-                    data_from_url = get_data_from_url("http://localhost:6969/GetfullupdateArr")
-                    if data_from_url:
-                        self.check_mabom(data_from_url)
-                    else:
-                        logger.warning("Không lấy được dữ liệu để kiểm tra mã bơm")
+                # Luôn lấy dữ liệu từ localhost để kiểm tra mã bơm (như client cũ)
+                data_from_url = get_data_from_url("http://localhost:6969/GetfullupdateArr")
+                if data_from_url:
+                    self.check_mabom(data_from_url)
                 else:
-                    logger.debug("⏸️ Chưa kết nối MQTT, bỏ qua kiểm tra mã bơm")
+                    logger.warning("Không lấy được dữ liệu để kiểm tra mã bơm")
                     
             except Exception as e:
                 logger.error(f"Lỗi trong vòng lặp kiểm tra mã bơm: {e}")
@@ -755,7 +739,7 @@ def main():
                 # Không dừng client khi mất kết nối, để nó tự reconnect
                 # Chỉ log trạng thái kết nối
                 if not client.mqtt_client.connected:
-                    logger.debug("⚠️ Mất kết nối MQTT, client sẽ tự động kết nối lại...")
+                    logger.info("⚠️ Mất kết nối MQTT, client sẽ tự động kết nối lại...")
                     
         except KeyboardInterrupt:
             logger.info("⏹️ Nhận tín hiệu dừng, đang tắt client...")
