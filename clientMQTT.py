@@ -256,15 +256,19 @@ class MQTTFuelStationClient:
             logger.error(f"❌ Lỗi gửi cảnh báo MQTT: {e}")
             return False
             
-    def publish_heartbeat(self):
+    def publish_heartbeat(self, include_info=False):
         """Gửi heartbeat qua MQTT"""
         try:
             message = {
-                'port': self.port,
-                'timestamp': datetime.now().isoformat(),
-                'version': self.version,
-                'mac': self.mac
+                'port': self.port
             }
+            
+            # Chỉ gửi thông tin đầy đủ khi cần thiết (lần đầu hoặc khi được yêu cầu)
+            if include_info:
+                message.update({
+                    'version': self.version,
+                    'mac': self.mac
+                })
             
             self.client.publish(TOPICS['station_heartbeat'], json.dumps(message), qos=MQTT_QOS)
             logger.debug(f"💓 Đã gửi heartbeat qua MQTT")
@@ -432,6 +436,7 @@ class FuelStationClient:
         self.last_restart_all = None
         self.last_non_sequential_restart = None
         self.getdata_enabled = False  # Mặc định tắt gửi dữ liệu
+        self.info_sent = False  # Đánh dấu đã gửi thông tin chưa
         
     def initialize(self):
         """Khởi tạo client"""
@@ -476,9 +481,14 @@ class FuelStationClient:
         """Gửi heartbeat liên tục và dữ liệu khi cần thiết"""
         while True:
             try:
-                # Luôn gửi heartbeat
-                self.mqtt_client.publish_heartbeat()
-                logger.debug("💓 Đã gửi heartbeat")
+                # Gửi heartbeat với thông tin đầy đủ lần đầu, sau đó chỉ gửi heartbeat đơn giản
+                if not self.info_sent:
+                    self.mqtt_client.publish_heartbeat(include_info=True)
+                    self.info_sent = True
+                    logger.info("📋 Đã gửi thông tin đầy đủ lần đầu")
+                else:
+                    self.mqtt_client.publish_heartbeat(include_info=False)
+                    logger.debug("💓 Đã gửi heartbeat đơn giản")
                 
                 # Chỉ gửi dữ liệu khi getdata_enabled = True
                 if self.getdata_enabled:
@@ -495,8 +505,8 @@ class FuelStationClient:
             except Exception as e:
                 logger.error(f"❌ Lỗi trong vòng lặp gửi dữ liệu: {e}")
                 
-            # Sleep cố định cho heartbeat
-            time.sleep(30)  # Gửi heartbeat mỗi 30 giây
+                # Sleep cố định cho heartbeat
+                time.sleep(10)  # Gửi heartbeat mỗi 10 giây
             
     def check_mabom_continuously(self):
         """Kiểm tra mã bơm liên tục"""
